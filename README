@@ -1,0 +1,78 @@
+Scripts for use with output from Nematus reconstructor (currently in
+'reconstruction' branch of https://github.com/pjwilliams/nematus).
+
+The basic workflow is as follows:
+
+  TRAIN
+  1. Train Nematus model as normal
+  2. Continue training with reconstructor
+
+  TEST
+  1.  Generate unnormalized n-best list using model from training step 1 or 2
+  2.  Rescore with reconstructor (generates separate reconstruction costs file)
+  3.  Combine n-best and reconstruction costs files into extended n-best list
+  4.  Normalize n-best list scores (alpha parameter controls length penalty)
+  5.  Rerank to get new 1-best (lambda parameter controls reconstructor weight)
+
+--------------------------------------------------------------------------------
+TRAIN
+--------------------------------------------------------------------------------
+1. Train Nematus model as normal
+
+2. Continue training with reconstructor by adding following options
+
+      --use_reconstructor \
+      --patience 100000 \
+
+  The patience option is necessary because we are introducing reconstruction
+  costs which will generally make the overall cost worse.  If the combined
+  cost never drops below the best cost from step 1, then a low patience
+  parameter would cause premature early stopping.
+
+  Optionally, the following will periodically generate a 1-best reconstruction
+  of the input (which can be evaluated against the input measure reconstruction
+  quality)
+
+      --valid_reconstruction_freq 10000 \
+
+--------------------------------------------------------------------------------
+TEST
+--------------------------------------------------------------------------------
+1. Generate unnormalized n-best list using model from training step 1 or 2
+
+    THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=gpu0 \
+    python $nematus_home/nematus/translate.py \
+        -m <MODELS> \
+        -i <SRC_BPE> \
+        -o <N_BEST_BASE> \
+        -k <K> \
+        --suppress-unk \
+        --n-best
+
+2. Rescore with reconstructor (generates separate reconstruction costs file)
+
+    THEANO_FLAGS=mode=FAST_RUN,floatX=float32,device=gpu0,on_unused_input=warn \
+    python $nematus_home/nematus/rescore.py \
+        -m <MODELS> \
+        -s <SRC_BPE> \
+        -i <N_BEST_BASE> \
+        -o <N_BEST_RESCORED> \
+        -b 80 \
+        --reconstruction_cost_file <RCOSTS>
+
+3. Combine n-best and reconstruction costs files into extended n-best list:
+
+    ./combine-nbest-rcost.py <N_BEST_BASE> <RCOSTS> \
+        > <NBEST_COMBINED>
+
+4.  Normalize n-best list scores (alpha parameter controls length penalty):
+
+    ./normalize-nbest.py <SRC_BPE> <ALPHA> \
+        < <NBEST_COMBINED> \
+        > <NBEST_NORMALIZED>
+
+5.  Rerank to get new 1-best (lambda parameter controls reconstructor weight)
+
+    ./rerank-recon.py inf <LAMBDA> \
+        < <NBEST_NORMALIZED>
+        > <1BEST_BPE>
