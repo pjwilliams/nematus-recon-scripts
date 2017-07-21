@@ -63,7 +63,13 @@ TEST
 3. Combine n-best and reconstruction costs files into extended n-best list:
 
     ./combine-nbest-rcost.py <N_BEST_BASE> <RCOSTS> \
+        --pick-tcosts 0 \
         > <NBEST_COMBINED>
+
+    The --pick-tcosts option specifies a list of scores (translation costs) that
+    should be copied from <N_BEST_BASE>.  By default, all scores are copied.
+    Similarly, the --pick-rcosts option specifies which reconstruction costs
+    should be copied from <RCOSTS>.
 
 4.  Normalize n-best list scores (alpha parameter controls length penalty):
 
@@ -74,5 +80,5 @@ TEST
 5.  Rerank to get new 1-best (lambda parameter controls reconstructor weight)
 
     ./rerank-recon.py inf <LAMBDA> \
-        < <NBEST_NORMALIZED>
+        < <NBEST_NORMALIZED> \
         > <1BEST_BPE>
