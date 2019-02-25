@@ -6,8 +6,8 @@ import sys
 
 def parse_cmd():
     parser = argparse.ArgumentParser()
-    parser.add_argument("one_best_translations", help="path to 1-best translations")
-    parser.add_argument("nbest_alignments", help="path to n-best alignments")
+    parser.add_argument("--one-best-translations", help="path to 1-best translations", required=True)
+    parser.add_argument("--nbest-alignments", help="path to n-best alignments", required=True)
 
     args = parser.parse_args()
 
@@ -16,18 +16,14 @@ def parse_cmd():
 def parse_nbest_alignment_header_line(line):
     cols = line.split("|||")
     if len(cols) != 5:
-        error("unsupported n-best alignments format")
-    sent_num = cols[0].strip()
-    translation = cols[1].strip()
-    cost = cols[2].strip()
-    input_sentence = cols[3].strip()
+        raise Exception("unsupported n-best alignments format")
+    cols = [col.strip() for col in cols]
+    sent_num = cols[0]
+    translation = cols[1]
+    cost = cols[2]
+    input_sentence = cols[3]
     lengths = [int(c.strip()) for c in cols[4].split(" ")]
     return sent_num, translation, cost, input_sentence, lengths
-
-
-def error(msg):
-    sys.stderr.write("%s: error: %s\n" % (sys.argv[0], msg.strip()))
-    sys.exit(1)
 
 
 def main():
@@ -46,18 +42,19 @@ def main():
 
                     if alignments_line == "":
                         continue
-                    try:
-                        sent_num, translation, cost, input_sentence, lengths = \
-                            parse_nbest_alignment_header_line(alignments_line)
-                    except:
-                        continue
+
+                    sent_num, translation, cost, input_sentence, lengths = parse_nbest_alignment_header_line(alignments_line)
 
                     if translation == one_best:
                         found_in_alignments_header = True
                         break
+                    else:
+                        # skip weights of this hypothesis
+                        for i in range(lengths[1]):
+                            alignments_handle.readline()
 
                 if not found_in_alignments_header:
-                    error("1best translation '%s' not found in any alignment header" % one_best)
+                    raise Exception("1best translation '%s' not found in any alignment header" % one_best)
 
                 sys.stdout.write(alignments_line + "\n")
                 for i in range(lengths[1]):
